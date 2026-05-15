@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimuMetalurgia - Módulo de Estructuras Cristalinas</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        :root {
+            --primary: #003366; --secondary: #0f172a; --accent: #dc2626; 
+            --bg: #f8fafc; --surface: #ffffff; --text: #1e293b; --border: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; background-color: var(--bg); color: var(--text); overflow-x: hidden; display: flex; flex-direction: column; min-height: 100vh; }
+
+        nav {
+            background: var(--secondary); color: white; padding: 15px 20px;
+            position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;
+        }
+        nav button {
+            background: transparent; border: none; color: #cbd5e1; padding: 10px 20px; border-radius: 6px; cursor: pointer;
+            font-weight: 700; transition: 0.3s; font-size: 0.9em; text-transform: uppercase;
+        }
+        nav button:hover { color: white; background: rgba(255,255,255,0.1); }
+        nav button.active-nav { background: var(--primary); color: white; box-shadow: 0 4px 10px rgba(0, 51, 102, 0.3); }
+
+        section { display: none; padding: 40px 20px; max-width: 1200px; margin: 0 auto; animation: fadeIn 0.4s ease-out; flex-grow: 1; width: 100%; }
+        section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        #presentacion { text-align: center; padding-top: 80px; }
+        .hero-card { background: var(--surface); padding: 60px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border-top: 5px solid var(--accent); }
+        .btn-large {
+            display: inline-block; padding: 14px 35px; margin: 8px; background: var(--primary); color: white; border: none;
+            border-radius: 8px; font-size: 1.05em; font-weight: 800; cursor: pointer; transition: 0.2s; text-transform: uppercase;
+            box-shadow: 0 4px 12px rgba(0, 51, 102, 0.2);
+        }
+        .btn-large:hover { transform: translateY(-2px); background: #002244; box-shadow: 0 6px 15px rgba(0, 51, 102, 0.3); }
+
+        .sim-container { display: grid; grid-template-columns: 360px 1fr; gap: 30px; align-items: start; }
+        .controls { background: var(--surface); padding: 30px; border-radius: 16px; box-shadow: 0 4px 25px rgba(0,0,0,0.04); }
+        .visuals { display: grid; grid-template-rows: auto auto; gap: 30px; }
+        .vis-card { background: var(--surface); border-radius: 16px; padding: 25px; text-align: center; position: relative; overflow: hidden; box-shadow: 0 4px 25px rgba(0,0,0,0.04); }
+        
+        .input-group { margin-bottom: 25px; }
+        label { display: block; font-weight: 800; font-size: 0.75em; text-transform: uppercase; color: #64748b; margin-bottom: 8px; letter-spacing: 0.5px; }
+        select { width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 1em; font-weight: 700; color: var(--primary); background: #f8fafc; outline: none; transition: 0.2s; }
+        select:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(0,51,102,0.05); }
+
+        .data-container { background: #f1f5f9; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #e2e8f0; text-align: center; }
+        .data-title { font-size: 0.85em; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .data-value { font-size: 2.2em; font-weight: 900; color: var(--primary); margin-bottom: 5px; line-height: 1; }
+        .data-atoms { font-size: 1.1em; font-weight: 700; color: var(--accent); }
+
+        .canvas-container { width: 100%; height: 350px; border-radius: 8px; overflow: hidden; background: #f1f5f9; border: 2px solid #cbd5e1; position: relative; outline: none; }
+        .canvas-container:active { cursor: grabbing; }
+        .overlay-tag { position: absolute; top: 15px; left: 15px; background: rgba(255,255,255,0.9); color: var(--primary); padding: 8px 15px; border-radius: 6px; font-family: monospace; font-weight: bold; font-size: 1.1em; border: 1px solid #cbd5e1; box-shadow: 0 4px 10px rgba(0,0,0,0.05); pointer-events: none; z-index: 10;}
+        .interactive-hint { position: absolute; bottom: 15px; left: 0; width: 100%; text-align: center; color: var(--primary); font-size: 0.85em; font-weight: 900; pointer-events: none; letter-spacing: 1px;}
+        
+        .zoom-slider-wrapper { position: absolute; right: 15px; top: 20px; bottom: 20px; width: 30px; background: rgba(255,255,255,0.8); border: 1px solid #cbd5e1; border-radius: 15px; display: flex; flex-direction: column; align-items: center; padding: 10px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.05); z-index: 20; }
+        .zoom-icon { font-size: 1.2em; font-weight: bold; color: var(--primary); margin: 5px 0; }
+        .zoom-slider { -webkit-appearance: slider-vertical; width: 100%; flex-grow: 1; cursor: pointer; outline: none; }
+
+        #cell3d-container { background: #bae6fd; border-color: #93c5fd; cursor: grab;}
+
+        /* ESTILOS DE TEORÍA MEJORADOS PARA MAYOR FLUIDEZ */
+        .theory-content { background: var(--surface); padding: 50px; border-radius: 16px; line-height: 1.8; box-shadow: 0 4px 25px rgba(0,0,0,0.04); }
+        .theory-content h1 { color: var(--primary); margin-top: 0; margin-bottom: 30px; font-size: 2.2em; border-bottom: 3px solid var(--accent); padding-bottom: 15px; display: inline-block; }
+        .theory-content h3 { color: var(--primary); font-size: 1.4em; margin-top: 40px; margin-bottom: 15px; }
+        .theory-content p { text-align: justify; font-size: 1.1em; color: #334155; margin-bottom: 20px; }
+        
+        .theory-content ul, .theory-content ol { font-size: 1.1em; color: #334155; margin-bottom: 25px; padding-left: 30px; }
+        .theory-content li { margin-bottom: 12px; }
+        
+        /* Cajas de texto destacado elegantes */
+        .theory-content strong { color: var(--primary); }
+        .theory-highlight { background: #f1f5f9; border-left: 4px solid var(--accent); padding: 20px 25px; border-radius: 0 8px 8px 0; margin: 25px 0; font-size: 1.05em; color: #475569; }
+        
+        .math-equation { 
+            background: #f8fafc; padding: 20px; border-left: 5px solid var(--primary); 
+            font-family: 'Courier New', Courier, monospace; font-size: 1.3em; 
+            text-align: center; margin: 30px 0; border-radius: 0 12px 12px 0; 
+            color: var(--primary); font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            transition: 0.3s;
+        }
+        .math-equation:hover { transform: scale(1.01); background: #ffffff; box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
+        
+        .theory-table { width: 100%; border-collapse: collapse; margin: 35px 0; font-size: 1em; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-radius: 12px; overflow: hidden; }
+        .theory-table th { background: var(--primary); color: white; padding: 18px 15px; text-align: left; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;}
+        .theory-table td { padding: 15px; border-bottom: 1px solid var(--border); color: #334155; }
+        .theory-table tr:nth-child(even) { background: #f8fafc; }
+        .theory-table tr:hover { background: #f1f5f9; }
+        .theory-table tr:last-child td { border-bottom: none; }
+
+        /* Acordeones más suaves */
+        .acc-btn { width: 100%; text-align: left; background: #ffffff; border: 1px solid #cbd5e1; padding: 22px 30px; font-size: 1.2em; font-weight: 800; color: var(--primary); cursor: pointer; border-radius: 12px; margin-top: 20px; display: flex; justify-content: space-between; align-items: center; transition: all 0.3s ease; box-shadow: 0 2px 10px rgba(0,0,0,0.02); }
+        .acc-btn:hover { border-color: var(--primary); box-shadow: 0 5px 15px rgba(0,0,0,0.05); transform: translateY(-2px); }
+        .acc-btn.active-acc { background: var(--primary); color: white; border-radius: 12px 12px 0 0; border-color: var(--primary); transform: none; box-shadow: none; }
+        .acc-btn .icon { font-size: 1.5em; line-height: 1; transition: transform 0.4s ease; }
+        .acc-btn.active-acc .icon { transform: rotate(135deg); }
+        
+        .acc-content { display: none; padding: 40px; background: #ffffff; border: 1px solid var(--border); border-top: none; border-radius: 0 0 12px 12px; animation: slideDown 0.4s ease-out; }
+        .acc-content.active-acc-content { display: block; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Imágenes integradas de forma más limpia */
+        .img-container { margin: 40px auto; text-align: center; max-width: 850px; }
+        .img-container img { width: 100%; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+        .img-caption { font-size: 0.95em; color: #64748b; text-align: left; margin-top: 15px; line-height: 1.6; font-style: italic; border-left: 3px solid var(--primary); padding-left: 15px; }
+        
+        /* Animaciones CSS Didácticas (Mejor integradas al flujo) */
+        .css-anim-wrapper { display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; align-items: center; background: #0f172a; padding: 40px; border-radius: 16px; margin: 40px 0; border: 1px solid #334155; box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
+        
+        /* 1. Vibración Térmica */
+        .anim-vibrate-container { display: flex; gap: 25px; position: relative; padding: 20px; }
+        .anim-vibrate { 
+            width: 50px; height: 50px; 
+            background: radial-gradient(circle at 30% 30%, #ff7e5f, #dc2626, #7f1d1d); 
+            border-radius: 50%; 
+            box-shadow: 0 0 25px rgba(255, 69, 0, 0.8), inset -5px -5px 15px rgba(0,0,0,0.8); 
+            animation: vibrate-intense 0.05s infinite alternate ease-in-out, pulse-heat 1.5s infinite alternate; 
+            position: relative;
+            z-index: 2;
+        }
+        .anim-vibrate::after {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            border-radius: 50%; border: 2px solid rgba(255, 69, 0, 0.5);
+            animation: ripple-heat 1s infinite linear;
+            z-index: 1;
+        }
+        @keyframes vibrate-intense { 0% { transform: translate(3px, 3px); } 100% { transform: translate(-3px, -3px); } }
+        @keyframes pulse-heat { 0% { box-shadow: 0 0 15px rgba(255, 69, 0, 0.6); } 100% { box-shadow: 0 0 40px rgba(255, 0, 0, 1); filter: brightness(1.3); } }
+        @keyframes ripple-heat { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+        /* 2. Transformación Alotrópica */
+        .anim-allotropy-scene { perspective: 800px; width: 140px; height: 140px; margin: 0 auto; }
+        .anim-allotropy { 
+            width: 100%; height: 100%; position: relative;
+            transform-style: preserve-3d;
+            animation: morph-extreme 6s infinite ease-in-out;
+        }
+        .allo-face { 
+            position: absolute; width: 100%; height: 100%; 
+            display: flex; justify-content: center; align-items: center; 
+            font-weight: 900; font-size: 2em; color: white; 
+            backface-visibility: hidden; border-radius: 12px;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.5);
+        }
+        .allo-bcc { background: linear-gradient(135deg, #0284c7, #003366); border: 4px solid #bae6fd; }
+        .allo-fcc { background: linear-gradient(135deg, #dc2626, #7f1d1d); border: 4px solid #fecaca; transform: rotateY(180deg); box-shadow: 0 0 50px rgba(220, 38, 38, 0.8), inset 0 0 30px rgba(0,0,0,0.5); }
+        @keyframes morph-extreme { 
+            0%, 30% { transform: rotateY(0deg) scale(1); } 
+            40% { transform: rotateY(90deg) scale(1.3); } 
+            50%, 80% { transform: rotateY(180deg) scale(1.1); } 
+            90% { transform: rotateY(270deg) scale(1.3); }
+            100% { transform: rotateY(360deg) scale(1); } 
+        }
+
+        /* 3. Deslizamiento de Planos */
+        .anim-slip-plane { position: relative; width: 100%; max-width: 320px; height: 160px; border-radius: 12px; background: #1e293b; overflow: hidden; border: 2px solid #475569; margin: 0 auto; }
+        .slip-atom { width: 35px; height: 35px; background: radial-gradient(circle at 30% 30%, #e2e8f0, #64748b); border-radius: 50%; box-shadow: inset -4px -4px 8px rgba(0,0,0,0.6), 0 5px 10px rgba(0,0,0,0.5); }
+        .slip-top-row { position: absolute; top: 30px; left: -10px; display: flex; gap: 5px; animation: slide-top 4s infinite cubic-bezier(0.4, 0, 0.2, 1); }
+        .slip-bot-row { position: absolute; bottom: 30px; left: 10px; display: flex; gap: 5px; }
+        .slip-dislocation { position: absolute; width: 4px; height: 70px; background: #38bdf8; top: 15px; left: 165px; box-shadow: 0 0 15px #38bdf8, 0 0 30px #0284c7; animation: slide-dislocation 4s infinite cubic-bezier(0.4, 0, 0.2, 1); z-index: 10; border-radius: 2px; }
+        @keyframes slide-top { 0%, 20% { transform: translateX(0); } 80%, 100% { transform: translateX(40px); } }
+        @keyframes slide-dislocation { 0%, 20% { transform: translateX(0); opacity: 1;} 70% { opacity: 1; } 80%, 100% { transform: translateX(40px); opacity: 0; } }
+        
+        .anim-text-box { flex: 1; min-width: 250px; max-width: 450px; color: #f8fafc; }
+        .anim-text-box h4 { margin-top: 0; color: #38bdf8; font-size: 1.3em; margin-bottom: 10px; border-bottom: 1px solid rgba(56, 189, 248, 0.3); padding-bottom: 8px;}
+        .anim-text-box p { color: #cbd5e1; font-size: 1em; line-height: 1.6; text-align: left; }
+
+        /* MANUAL STYLE */
+        .manual-step { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 30px; background: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
+        .step-num { background: var(--primary); color: white; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.2em; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0, 51, 102, 0.2); }
+        .manual-step h3 { margin-top: 0; color: var(--primary); margin-bottom: 15px; font-size: 1.3em; }
+        .manual-step p { color: #475569; line-height: 1.7; font-size: 1.05em; }
+
+        footer { text-align: center; padding: 25px 20px; margin-top: 50px; border-top: 1px solid var(--border); color: #64748b; font-size: 0.95em; background: var(--surface); width: 100%; box-shadow: 0 -4px 15px rgba(0,0,0,0.02); }
+        footer span { color: var(--primary); font-weight: 800; }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <button id="nav-presentacion" onclick="showSection('presentacion')" class="active-nav">Presentación</button>
+        <button id="nav-simulador" onclick="showSection('simulador')">Arquitecto de Cristales</button>
+        <button id="nav-teoria" onclick="showSection('teoria')">Teoría Fundamental</button>
+        <button id="nav-manual" onclick="showSection('manual')">Manual de Uso</button>
+    </nav>
+
+    <section id="presentacion" class="active">
+        <div class="hero-card">
+            <h1 style="font-size: 2.8em; color: var(--primary); margin-bottom: 5px;">Introducción a la Metalurgia</h1>
+            <h2 style="color: var(--accent); margin-top: 0; margin-bottom: 20px;">Módulo 03: Arquitectura de Cristales</h2>
+            <p style="color: #475569; font-size: 1.15em; max-width: 800px; margin: 0 auto 40px auto; line-height: 1.6;">
+                Un metal sólido es en realidad un inmenso universo ordenado. Explore cómo cada celda unitaria se multiplica para formar bloques industriales y descubra por qué la geometría a nivel de 0.00001% de volumen dicta la fuerza de un rascacielos.
+            </p>
+            <div>
+                <button class="btn-large" onclick="showSection('simulador')">Abrir Visores 3D</button>
+                <button class="btn-large" style="background: #334155;" onclick="showSection('teoria')">Estudiar Teoría</button>
+                <button class="btn-large" style="background: #64748b;" onclick="showSection('manual')">Ver Manual</button>
+            </div>
+        </div>
+    </section>
+
+    <section id="simulador">
+        <div class="sim-container">
+            <div class="controls">
+                <div class="input-group">
+                    <label>1. Seleccionar Aleación / Metal</label>
+                    <select id="material" onchange="changeMaterial()">
+                        <option value="" disabled selected>Seleccione un material...</option>
+                    </select>
+                </div>
+
+                <div class="data-container">
+                    <div class="data-title">Microestructura</div>
+                    <div id="structName" class="data-value">-</div>
+                    <div id="atomCount" class="data-atoms">-</div>
+                </div>
+
+                <div style="background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px dashed #cbd5e1; font-size: 0.9em; color: #475569; line-height: 1.5;">
+                    <strong style="color: var(--primary);">Factor de Empaquetamiento (APF):</strong> <br>
+                    <span id="apfValue" style="font-weight: bold; color: var(--accent);">-</span><br><br>
+                    <span id="structDesc">Seleccione un material para iniciar el análisis cristalográfico. El bloque se visualizará con realismo metálico.</span>
+                </div>
+            </div>
+
+            <div class="visuals">
+                <div class="vis-card" style="padding: 0;">
+                    <div id="zoom3d-container" class="canvas-container" tabindex="0">
+                        <div class="overlay-tag" id="tagScaleMode">VISTA MACROSCÓPICA</div>
+                        <div class="interactive-hint" id="hintZoom">HAGA SCROLL O USE FLECHAS ↑/↓ PARA PENETRAR EL BLOQUE</div>
+                        <div class="zoom-slider-wrapper">
+                            <span class="zoom-icon">+</span>
+                            <input type="range" id="zoomSlider" class="zoom-slider" min="0" max="100" value="0" step="0.1">
+                            <span class="zoom-icon">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="vis-card" style="padding: 0;">
+                    <div id="cell3d-container" class="canvas-container">
+                        <div class="overlay-tag">CELDA UNITARIA AISLADA</div>
+                        <div class="interactive-hint">CLIC Y ARRASTRE PARA ROTAR</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="teoria">
+        <div class="theory-content">
+            <h1>Enciclopedia de Estructuras Cristalinas</h1>
+            <p>De acuerdo con la literatura fundamental de la Ciencia e Ingeniería de Materiales (incluyendo los manuales de ASM International y los textos de Askeland y Krauss), los metales y aleaciones en estado sólido exhiben un ordenamiento atómico de largo alcance. La comprensión matemática y geométrica de este ordenamiento es el pilar de la metalurgia física moderna, ya que rige directamente propiedades macroscópicas como la densidad, la ductilidad, la resistencia a la tracción y el endurecimiento por deformación.</p>
+
+            <button class="acc-btn" onclick="toggleAccordion(this)">1. Fundamentos de Cristalografía y Redes de Bravais <span class="icon">+</span></button>
+            <div class="acc-content">
+                <p>El arreglo espacial de los átomos en un sólido cristalino se puede describir imaginando los átomos como esferas rígidas que se tocan entre sí. Para facilitar su estudio geométrico, se abstrae este conjunto a una <strong>red espacial</strong>, la cual es un arreglo tridimensional infinito de puntos donde cada punto tiene entornos idénticos. La porción más pequeña de la red que retiene la simetría general de toda la estructura se denomina <strong>celda unitaria</strong>.</p>
+                <p>La geometría de la celda unitaria está definida por seis parámetros de red: tres longitudes de arista (a, b, c) y tres ángulos interaxiales (α, β, γ). Matemáticamente, Auguste Bravais demostró en 1850 que solo existen 14 arreglos posibles de puntos en el espacio tridimensional que cumplen con los requisitos de simetría de red. Estas 14 redes de Bravais se agrupan en 7 sistemas cristalinos básicos.</p>
+                
+                <table class="theory-table">
+                    <thead>
+                        <tr>
+                            <th>Sistema Cristalino</th>
+                            <th>Longitudes de Arista</th>
+                            <th>Ángulos Interaxiales</th>
+                            <th>Ejemplos Metálicos / Cerámicos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Cúbico</td><td>a = b = c</td><td>α = β = γ = 90°</td><td>Fe, Cu, Al, Au, Ag, Pb</td></tr>
+                        <tr><td>Tetragonal</td><td>a = b ≠ c</td><td>α = β = γ = 90°</td><td>Estaño blanco (β-Sn)</td></tr>
+                        <tr><td>Hexagonal</td><td>a = b ≠ c</td><td>α = β = 90°, γ = 120°</td><td>Ti, Mg, Zn, Cd</td></tr>
+                        <tr><td>Ortorrómbico</td><td>a ≠ b ≠ c</td><td>α = β = γ = 90°</td><td>Cementita (Fe<sub>3</sub>C), Galio</td></tr>
+                        <tr><td>Romboédrico</td><td>a = b = c</td><td>α = β = γ ≠ 90°</td><td>Antimonio, Bismuto</td></tr>
+                        <tr><td>Monoclínico</td><td>a ≠ b ≠ c</td><td>α = γ = 90° ≠ β</td><td>Plutonio (fase alfa)</td></tr>
+                        <tr><td>Triclínico</td><td>a ≠ b ≠ c</td><td>α ≠ β ≠ γ ≠ 90°</td><td>Muy raro en metales</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="img-container">
+                    <img src="https://3.bp.blogspot.com/-Pfh0WhHH06I/T3P-QHY5k5I/AAAAAAAAAAk/J_nKv7nRDk4/s1600/o.png" alt="Redes de Bravais">
+                    <p class="img-caption"><strong>Las 14 Redes de Bravais:</strong> Representación clásica de las variaciones geométricas. Los metales puros, debido al enlace metálico no direccional (mar de electrones), tienden a empacarse densamente, por lo que el 90% de ellos cristalizan en solo tres estructuras predominantes: BCC, FCC y HCP.</p>
+                </div>
+
+                <div class="theory-highlight">
+                    En el enlace metálico, los iones positivos (cationes) se repelen entre sí pero son atraídos por la nube de electrones deslocalizados. Esta fuerza atractiva es isotrópica (igual en todas direcciones), lo que impulsa a los átomos a acercarse lo más posible para minimizar la energía del sistema, resultando en factores de empaquetamiento muy altos en comparación con los polímeros o cerámicas covalentes.
+                </div>
+            </div>
+
+            <button class="acc-btn" onclick="toggleAccordion(this)">2. Análisis Profundo del Sistema BCC (Cúbica Centrada en el Cuerpo) <span class="icon">+</span></button>
+            <div class="acc-content">
+                <p>La estructura Cúbica Centrada en el Cuerpo (BCC por sus siglas en inglés, <em>Body-Centered Cubic</em>) es característica de metales de alta resistencia y alto punto de fusión, incluyendo el Hierro Alfa (α-Fe), el Tungsteno (W), el Molibdeno (Mo) y el Cromo (Cr). En esta red, los átomos se ubican en los 8 vértices del cubo y un átomo completo se asienta en el centro volumétrico exacto de la celda.</p>
+                
+                <h3>Parámetros Cristalográficos Críticos</h3>
+                <ul>
+                    <li><strong>Átomos por celda unitaria:</strong> (8 vértices × <sup>1</sup>⁄<sub>8</sub>) + (1 centro × 1) = 2 átomos por celda.</li>
+                    <li><strong>Número de Coordinación:</strong> 8. Cada átomo central toca exactamente a los 8 átomos de las esquinas a lo largo de las diagonales principales del cubo.</li>
+                    <li><strong>Relación Radio-Arista:</strong> Dado que el contacto atómico ininterrumpido ocurre en la diagonal a través del cuerpo, la longitud de esa diagonal es 4R = a√3. Por ende, el parámetro de red es <strong>a = 4R / √3</strong>.</li>
+                    <li><strong>Factor de Empaquetamiento Atómico (APF):</strong> El APF se define como el volumen de átomos sólidos dentro de la celda dividido por el volumen total de la celda. Para el sistema BCC, el APF es rigurosamente 0.68.</li>
+                </ul>
+
+                <div class="math-equation">
+                    APF<sub>BCC</sub> = [ 2 × (4/3)πR<sup>3</sup> ] / [ (4R/√3)<sup>3</sup> ] &approx; 0.68
+                </div>
+
+                <div class="img-container">
+                    <img src="https://image.slidesharecdn.com/bccfcchcpstruc2-231014063434-2e33277d/85/bcc-fcc-hcp-struc-2-pptx-7-638.jpg" alt="Celda BCC">
+                    <p class="img-caption"><strong>Anatomía de la celda BCC:</strong> Note cómo los átomos de los vértices NO se tocan entre sí a lo largo de la arista exterior del cubo (a). El único contacto físico ininterrumpido ocurre a través de la diagonal principal interior. Esto explica por qué el empaquetamiento volumétrico es del 68% (dejando un 32% de espacio vacío).</p>
+                </div>
+
+                <div class="theory-highlight">
+                    <strong>Comportamiento Mecánico (Transición Dúctil-Frágil):</strong> Aunque los metales BCC poseen 48 posibles sistemas de deslizamiento, los planos atómicos no son de empaquetamiento cerrado. Esto requiere un esfuerzo cortante mucho mayor para lograr mover las dislocaciones. Por lo tanto, los metales BCC son naturalmente fuertes pero exhiben una marcada <strong>Transición Dúctil-Frágil (DBTT)</strong> al bajar la temperatura, volviéndose quebradizos como el vidrio en ambientes fríos o criogénicos.
+                </div>
+            </div>
+
+            <button class="acc-btn" onclick="toggleAccordion(this)">3. Análisis Profundo del Sistema FCC (Cúbica Centrada en las Caras) <span class="icon">+</span></button>
+            <div class="acc-content">
+                <p>El sistema Cúbico Centrado en las Caras (FCC, <em>Face-Centered Cubic</em>) es la estructura reina de la ductilidad. Metales altamente formables como el Aluminio (Al), el Cobre (Cu), el Oro (Au), la Plata (Ag), el Plomo (Pb) y el Hierro Gamma (Austenita, γ-Fe) cristalizan en esta red. Geométricamente, cuenta con átomos en los 8 vértices y un átomo cortado a la mitad centrado en cada una de las 6 caras del cubo.</p>
+
+                <h3>Parámetros Cristalográficos Críticos</h3>
+                <ul>
+                    <li><strong>Átomos por celda unitaria:</strong> (8 vértices × <sup>1</sup>⁄<sub>8</sub>) + (6 caras × <sup>1</sup>⁄<sub>2</sub>) = 4 átomos por celda.</li>
+                    <li><strong>Número de Coordinación:</strong> 12. Es el máximo empaquetamiento físico posible para esferas idénticas en el universo.</li>
+                    <li><strong>Relación Radio-Arista:</strong> El contacto interatómico ocurre a lo largo de la diagonal de las caras exteriores del cubo. Por tanto, la diagonal facial es 4R = a√2, lo que resulta en un parámetro de red de <strong>a = 4R / √2</strong>.</li>
+                    <li><strong>Factor de Empaquetamiento Atómico (APF):</strong> 0.74. No existe ninguna configuración cristalográfica elemental que logre superar el 74% de densidad volumétrica con átomos del mismo tamaño.</li>
+                </ul>
+
+                <div class="math-equation">
+                    APF<sub>FCC</sub> = [ 4 × (4/3)πR<sup>3</sup> ] / [ (4R/√2)<sup>3</sup> ] &approx; 0.74
+                </div>
+
+                <div class="img-container">
+                    <img src="https://static.vecteezy.com/system/resources/previews/023/587/381/non_2x/face-centered-cube-system-in-solid-state-crystal-structure-vector.jpg" alt="Celda FCC">
+                    <p class="img-caption"><strong>Anatomía de la celda FCC:</strong> La presencia de planos atómicos ultra-densos en las diagonales del cubo permite el deslizamiento atómico con muy poca fricción interna. Esto es lo que otorga a metales como el oro y el cobre su asombrosa capacidad de deformación plástica en frío (trefilado a hilos finos y laminado en láminas micrométricas).</p>
+                </div>
+
+                <div class="theory-highlight">
+                    <strong>Ductilidad Extrema y Planos de Deslizamiento:</strong> La red FCC posee los planos de empaquetamiento más compactos posibles, definidos por los índices de Miller {111}. Al existir 4 planos no paralelos, cada uno con 3 direcciones densas, obtenemos <strong>12 sistemas de deslizamiento</strong> de altísima eficiencia. La barrera de energía para que los átomos resbalen unos sobre otros aquí es bajísima. Esto garantiza que los metales FCC mantengan su ductilidad suprema incluso a temperaturas cercanas al cero absoluto.
+                </div>
+            </div>
+
+            <button class="acc-btn" onclick="toggleAccordion(this)">4. Sistema HCP (Hexagonal Compacta) y Anisotropía Mecánica <span class="icon">+</span></button>
+            <div class="acc-content">
+                <p>La estructura Hexagonal Compacta (HCP, <em>Hexagonal Close-Packed</em>) comparte el factor de empaquetamiento máximo (0.74) con la red FCC, lo que significa que es igualmente densa, pero su geometría macroscópica es radicalmente diferente, formando un prisma de base hexagonal. Metales clave para la industria aeroespacial por su ligereza, como el Titanio Alfa (α-Ti), el Magnesio (Mg) y el Zinc (Zn), adoptan esta estructura.</p>
+
+                <h3>La Diferencia Fundamental: Secuencia de Apilamiento</h3>
+                <p>La diferencia entre FCC y HCP radica en cómo se apilan las capas de átomos unas sobre otras al formarse el cristal sólido:</p>
+                <ul>
+                    <li>Si imaginamos una primera capa de átomos (Capa A), y luego ponemos una segunda capa (Capa B) en los huecos de la primera...</li>
+                    <li>Si la tercera capa se alinea <strong>exactamente encima</strong> de los átomos de la Capa A original, la secuencia se repite como <strong>A-B-A-B-A-B</strong>. Este apilamiento perfectamente vertical genera el prisma de la red <strong>HCP</strong>.</li>
+                    <li>Sin embargo, si la tercera capa se acomoda en los huecos alternativos, formando una Capa C desfasada, la secuencia será <strong>A-B-C-A-B-C</strong>. Esta disposición tridimensional oblicua es la que genera la simetría cúbica <strong>FCC</strong>.</li>
+                </ul>
+
+                <div class="img-container">
+                    <img src="https://3.bp.blogspot.com/-nMPWZilxnsA/W8C8jIrouBI/AAAAAAAAAbU/jJ4E81M6wdU7wQqQJfjmJTaHBVwlV3vEwCLcBGAs/s1600/ss.png" alt="Celda HCP">
+                    <p class="img-caption"><strong>Anatomía de la celda HCP:</strong> Observe la representación de planos basales superior e inferior. Se pueden identificar claramente tres átomos anidados completamente en el interior del prisma (la capa B). La celda unitaria completa abarca 6 átomos efectivos en su interior geométrico.</p>
+                </div>
+
+                <div class="theory-highlight">
+                    <strong>Anisotropía y Comportamiento Rígido:</strong> A temperatura ambiente, los metales HCP tienen sistemas de deslizamiento confinados casi exclusivamente a su plano basal horizontal. Al carecer de la red de planos tridimensionales cruzados que posee el FCC, metales como el titanio o el magnesio tienen dificultades para deformarse lateralmente bajo tensión sin agrietarse. A este fenómeno, donde las propiedades mecánicas varían según el ángulo en que se aplique la fuerza sobre el cristal, se le denomina <strong>anisotropía mecánica</strong>.
+                </div>
+            </div>
+
+            <button class="acc-btn" onclick="toggleAccordion(this)">5. Geometría de Sitios Intersticiales (El Secreto del Acero) <span class="icon">+</span></button>
+            <div class="acc-content">
+                <p>Incluso en las estructuras de máximo empaquetamiento (con 74% de volumen ocupado), existe un 26% del espacio interno de la celda unitaria que está técnicamente "vacío". Estos micro-huecos generados entre las grandes esferas metálicas se denominan <strong>Sitios Intersticiales</strong> y son el fundamento científico sagrado que permite la creación de aleaciones super-resistentes, especialmente el Acero (la mezcla estratégica de Hierro y Carbono).</p>
+                
+                <p>Existen dos geometrías principales para estos espacios vacíos: los huecos <strong>Octaédricos</strong> (rodeados por 6 átomos anfitriones) y los huecos <strong>Tetraédricos</strong> (rodeados por 4 átomos anfitriones). El diámetro de estos huecos dicta qué tan bien puede disolverse un elemento de aleación pequeño sin reventar la red madre.</p>
+
+                <table class="theory-table">
+                    <thead>
+                        <tr>
+                            <th>Estructura Madre del Hierro</th>
+                            <th>Tamaño del Hueco Octaédrico</th>
+                            <th>Solubilidad Máxima de Carbono</th>
+                            <th>Condición Física</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>FCC (Austenita γ)</strong></td>
+                            <td>0.414 × R</td>
+                            <td>2.14 % en peso</td>
+                            <td>Alta temperatura (> 912°C). Huecos grandes, fácil disolución.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>BCC (Ferrita α)</strong></td>
+                            <td>0.155 × R (Asimétrico)</td>
+                            <td>0.022 % en peso</td>
+                            <td>Baja temperatura (< 912°C). Huecos achatados, rechazo de soluto.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <p><strong>La Paradoja del Templado del Acero:</strong> El átomo de Carbono tiene un radio de 0.071 nm, mientras que el átomo de Hierro mide 0.124 nm. Matemáticamente, el carbono es demasiado grande para caber perfectamente en los huecos de la red en frío (BCC). Sin embargo, cuando calentamos el acero y la red se transforma a Austenita (FCC), los huecos octaédricos se ensanchan a 0.414R, permitiendo que el carbono se disuelva cómodamente en el metal al rojo vivo.</p>
+
+                <div class="theory-highlight">
+                    El verdadero secreto ocurre al enfriar rápidamente el metal en agua (Templado). La red intenta volver a su forma BCC natural (cuyos huecos miden apenas 0.155R), pero el carbono atrapado dentro no tiene tiempo de escapar. Los átomos de carbono quedan literalmente aplastados en el interior, distorsionando violentamente el cubo BCC y convirtiéndolo en un rectángulo bajo inmensa tensión interna. ¡Esta red distorsionada bajo esfuerzo extremo es la <strong>Martensita</strong>, la fase responsable de otorgar la dureza legendaria a las herramientas, engranajes y espadas!
+                </div>
+            </div>
+
+            <button class="acc-btn" onclick="toggleAccordion(this)">6. Alotropía y Transformaciones Polimórficas <span class="icon">+</span></button>
+            <div class="acc-content">
+                <p>La <strong>Alotropía</strong> (o Polimorfismo) es la fascinante capacidad termodinámica que poseen ciertos metales puros para cambiar su estructura cristalina por completo de forma reversible cuando cruzan ciertos umbrales de temperatura o presión en estado sólido. El ejemplo más crítico en la ingeniería global es, sin duda, el comportamiento alotrópico del Hierro puro.</p>
+
+                <div class="css-anim-wrapper">
+                    <div style="text-align:center;">
+                        <span style="display:block; margin-bottom: 20px; color:#94a3b8; font-weight: bold; letter-spacing: 1px;">Metamorfosis Estructural (BCC a FCC)</span>
+                        <div class="anim-allotropy-scene">
+                            <div class="anim-allotropy">
+                                <div class="allo-face allo-bcc">BCC</div>
+                                <div class="allo-face allo-fcc">FCC</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="anim-text-box">
+                        <h4>Transición de Fase en Estado Sólido</h4>
+                        <p>Al cruzar los 912°C, la energía térmica inyectada fuerza a los enlaces metálicos del hierro a reacomodarse masivamente. El hierro pasa de BCC (cubo azul) a FCC (cubo al rojo vivo). Extrañamente, esta transición implica una repentina <strong>contracción volumétrica</strong> macroscópica, porque aunque el metal esté caliente, los átomos logran empaquetarse de forma más densa (del 68% al 74% del espacio).</p>
+                    </div>
+                </div>
+
+                <h3>La Curva de Enfriamiento del Hierro Puro (a 1 Atmósfera):</h3>
+                <ol>
+                    <li><strong>Hierro Líquido (> 1538 °C):</strong> Los átomos poseen un exceso de energía cinética; no hay orden de largo alcance, comportándose como un fluido caótico.</li>
+                    <li><strong>Hierro Delta (δ-Fe) (1538 °C a 1394 °C):</strong> El metal solidifica inicialmente en una estructura <strong>BCC</strong>. Las distancias interatómicas son grandes debido a la alta vibración de las altas temperaturas.</li>
+                    <li><strong>Hierro Gamma o Austenita (γ-Fe) (1394 °C a 912 °C):</strong> Por mandatos de las leyes de la termodinámica (minimización de energía libre), la red sufre una metamorfosis hacia <strong>FCC</strong>. El bloque de hierro se encoge físicamente en este punto. La fase es no magnética y altamente dúctil.</li>
+                    <li><strong>Hierro Alfa o Ferrita (α-Fe) (< 912 °C):</strong> Al enfriarse más, la estructura pierde energía y revierte nuevamente a <strong>BCC</strong>. El metal experimenta una dilatación en volumen. Por debajo de los 768°C (Temperatura de Curie), los momentos magnéticos de los electrones se alinean, y el hierro vuelve a ser fuertemente ferromagnético.</li>
+                </ol>
+            </div>
+
+            <button class="acc-btn" onclick="toggleAccordion(this)">7. Imperfecciones Cristalinas I: Defectos Puntuales y Entropía <span class="icon">+</span></button>
+            <div class="acc-content">
+                <p>Un concepto fundamental en la ciencia de materiales moderna es que el cristal matemático "perfecto" es una utopía que no existe en la naturaleza. De hecho, según la Segunda Ley de la Termodinámica, el universo exige un nivel basal de entropía (caos), lo que hace termodinámicamente imposible crear un cristal sin defectos por encima del cero absoluto. Las imperfecciones que afectan a uno o pocos átomos se denominan <strong>Defectos Puntuales</strong>.</p>
+                
+                <div class="css-anim-wrapper">
+                    <div style="text-align:center;">
+                        <span style="display:block; margin-bottom: 25px; color:#94a3b8; font-weight: bold; letter-spacing: 1px;">Vibración Térmica Atómica</span>
+                        <div class="anim-vibrate-container">
+                            <div class="anim-vibrate"></div>
+                            <div class="anim-vibrate" style="animation-delay: 0.15s;"></div>
+                            <div class="anim-vibrate" style="animation-delay: 0.3s;"></div>
+                        </div>
+                    </div>
+                    <div class="anim-text-box">
+                        <h4>El Motor de la Difusión</h4>
+                        <p>Los átomos en estado sólido nunca están quietos; vibran constantemente en su posición de equilibrio. Si la vibración térmica es lo suficientemente violenta, un átomo puede romper sus enlaces momentáneamente y saltar a un espacio vacío, dejando una <strong>vacancia</strong> detrás. Este caos controlado a nivel nanométrico es lo que permite que procesos industriales como la carburización o el temple funcionen.</p>
+                    </div>
+                </div>
+
+                <h3>Clasificación de los Defectos Puntuales:</h3>
+                <ul>
+                    <li><strong>Vacancias:</strong> Son sitios geométricos de la red que deberían estar ocupados por átomos, pero están completamente vacíos. Su cantidad aumenta de forma exponencial al calentar el metal. Las vacancias actúan como "sillas vacías" en un teatro, permitiendo que otros átomos se muevan por la sala. Sin ellas, la difusión en estado sólido sería imposible.</li>
+                    <li><strong>Átomos Intersticiales:</strong> Ocurre cuando un átomo intruso (usualmente muy pequeño, como el Nitrógeno o el Hidrógeno) se fuerza a sí mismo dentro de los huecos vacíos de la red anfitriona, causando una enorme tensión elástica local que endurece el material.</li>
+                    <li><strong>Átomos Sustitucionales:</strong> Son átomos de otro elemento que tienen un tamaño similar al átomo original y simplemente lo reemplazan en su posición formal. Para crear aleaciones perfectas (como el Latón, sustituyendo Cobre con Zinc), los metales deben cumplir las <strong>Reglas empíricas de Hume-Rothery</strong> (tener tamaños similares con no más de 15% de diferencia, misma estructura cristalina base y electronegatividades parecidas).</li>
+                </ul>
+            </div>
+
+            <button class="acc-btn" onclick="toggleAccordion(this)">8. Imperfecciones Cristalinas II: Dislocaciones y Deformación Plástica <span class="icon">+</span></button>
+            <div class="acc-content">
+                <p>¿Por qué podemos doblar un clip metálico de acero o aluminio fácilmente sin que se parta, mientras que un plato de cerámica se rompe instantáneamente si intentamos deformarlo? La clave absoluta de la plasticidad y la ingeniería de conformado mecánico reside en la existencia de defectos lineales continuos conocidos como <strong>Dislocaciones</strong>.</p>
+                
+                <p>En la década de 1930, los físicos calcularon la fuerza teórica necesaria para cizallar un cristal perfecto, asumiendo que capas enteras de átomos tendrían que resbalar unas sobre otras simultáneamente, rompiendo millones de enlaces químicos a la vez. Los cálculos arrojaban resistencias colosales. Sin embargo, en los ensayos de laboratorio, los metales se doblaban aplicando apenas una fracción de esa fuerza teórica. La respuesta fue el descubrimiento de las dislocaciones: los planos atómicos no resbalan todos a la vez, sino que el movimiento se propaga progresivamente, de un átomo al siguiente, similar al movimiento secuencial de una alfombra arrugada o de un gusano.</p>
+
+                <div class="css-anim-wrapper">
+                    <div style="text-align:center;">
+                        <span style="display:block; margin-bottom: 25px; color:#94a3b8; font-weight: bold; letter-spacing: 1px;">Mecanismo de Deslizamiento (Slip)</span>
+                        <div class="anim-slip-plane">
+                            <div class="slip-dislocation"></div>
+                            <div class="slip-top-row">
+                                <div class="slip-atom"></div><div class="slip-atom"></div><div class="slip-atom"></div>
+                                <div class="slip-atom"></div><div class="slip-atom"></div><div class="slip-atom"></div><div class="slip-atom"></div>
+                            </div>
+                            <div class="slip-bot-row">
+                                <div class="slip-atom"></div><div class="slip-atom"></div><div class="slip-atom"></div>
+                                <div class="slip-atom"></div><div class="slip-atom"></div><div class="slip-atom"></div><div class="slip-atom"></div><div class="slip-atom"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="anim-text-box">
+                        <h4>Propagación del Defecto</h4>
+                        <p>La barra celeste brillante representa el núcleo de una línea de dislocación (un plano extra de átomos insertado a la mitad). Impulsada por una carga mecánica de cizalladura, la dislocación requiere muy poca energía para romper un solo enlace local y saltar a la derecha. Cuando la línea cruza todo el material, ha completado un paso de deformación plástica irreversible.</p>
+                    </div>
+                </div>
+
+                <h3>Mecánica de Endurecimiento y Geometría</h3>
+                <ul>
+                    <li><strong>Dislocación de Borde (Edge):</strong> Visualizada como la inserción de un "medio-plano" adicional de átomos dentro de la estructura perfecta. Actúa como una cuña que genera compresión por encima de ella y tensión por debajo. El vector que describe la magnitud y dirección del daño cristalográfico se denomina <strong>Vector de Burgers</strong>.</li>
+                    <li><strong>Dislocación Helicoidal (Screw):</strong> Ocurre cuando el cristal sufre un corte y los átomos se desfasan formando una rampa en espiral continua a nivel molecular.</li>
+                </ul>
+                
+                <div class="theory-highlight">
+                    <strong>El fenómeno del Acritud (Endurecimiento por Trabajo en Frío):</strong> Cada vez que forjamos, martillamos, doblamos o trefilamos un metal a temperatura ambiente, inyectamos energía mecánica masiva en la red, lo que actúa como un generador, creando millones de nuevas líneas de dislocación. Eventualmente, hay tantas dislocaciones moviéndose por los planos cristalinos que chocan entre sí, se enredan y bloquean sus propios caminos. A medida que las dislocaciones ya no pueden moverse, el material ya no puede deformarse. <strong>El metal pierde ductilidad, pero multiplica su dureza y resistencia a la tensión.</strong> Esta es la ciencia fundamental detrás del laminado industrial de aceros y aleaciones estructurales ligeras.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="manual">
+        <div class="theory-content">
+            <h1 style="margin-bottom: 5px;">Manual Técnico de Simulación</h1>
+            <h2 style="color: var(--accent); margin-top: 0; margin-bottom: 30px;">Análisis de Redes y Transición de Escala (0.00001% Vol)</h2>
+            
+            <p style="color: #475569; font-size: 1.1em; line-height: 1.7; margin-bottom: 40px;">
+                Este entorno virtual permite visualizar el ordenamiento atómico de materiales industriales con un nivel de detalle matemático estricto. A continuación, se detallan los protocolos de interacción para el estudio cristalográfico.
+            </p>
+
+            <div class="manual-step">
+                <div class="step-num">1</div>
+                <div>
+                    <h3>Configuración de Muestra (Panel de Control)</h3>
+                    <p>El primer paso es elegir el material de estudio. Al seleccionar un metal del menú desplegable:</p>
+                    <ul style="margin-top: 10px;">
+                        <li>El sistema calcula automáticamente la Microestructura y su Factor de Empaquetamiento (APF) presentándolos en el panel central.</li>
+                        <li>El visor superior e inferior se sincronizan y activan para renderizar los colores y la geometría específica del cristal.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="manual-step">
+                <div class="step-num">2</div>
+                <div>
+                    <h3>Exploración de Escala (Visor Superior)</h3>
+                    <p>Este visor simula un viaje microscópico desde la superficie macroscópica del metal hasta penetrar el núcleo geométrico de su red atómica interna. Hemos implementado tres métodos de control ultra-suavizados para la cámara:</p>
+                    <div style="background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 15px 0;">
+                        <p style="margin: 5px 0;"><strong>A. Rueda del Ratón (Scroll):</strong> Desplazamiento fluido y de alta precisión paramétrica.</p>
+                        <p style="margin: 5px 0;"><strong>B. Teclado (Flechas ↑ / ↓):</strong> Inyecta impulsos cinemáticos para lograr un nivel de zoom constante y guiado.</p>
+                        <p style="margin: 5px 0;"><strong>C. Barra Lateral (+ / -):</strong> Control manual y exacto de la profundidad en el eje Z para fijar inspecciones visuales estáticas.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="manual-step">
+                <div class="step-num">3</div>
+                <div>
+                    <h3>Navegación e Inspección de la Red</h3>
+                    <p>Una vez que haya sobrepasado la barrera visual de transición y se encuentre inmerso en la red atómica estructural:</p>
+                    <ul style="margin-top: 10px;">
+                        <li><strong>Paneo Controlado:</strong> Mantenga presionado el <strong>Clic Derecho</strong> en su ratón y mueva el cursor lateralmente para navegar libremente por los pasillos tridimensionales de las filas atómicas. El algoritmo inercial del paneo ha sido ajustado al formato 1:1, asegurando que no se pierda en el vacío matemático por movimientos bruscos.</li>
+                        <li><strong>Análisis de Vértices:</strong> Acuda al visor inferior ("Celda Unitaria Aislada"). Use el <strong>Clic Izquierdo</strong> para rotar de manera independiente la unidad fundamental y contrastar la teoría de apilamiento (los colores de los átomos coinciden funcionalmente con sus posiciones en la estructura mayor).</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>SimuMetalurgia © 2026 <br><br> 
+Desarrollo: <span> Andrés Felipe Caro Miranda & José Gabriel Franco Correa</span>  |  Asesoría: <span> Prof. Ana Emilse Coy Echeverria   &   Prof. Carlos Andrés Galán Pinilla.</span> <br><br> Universidad Industrial de Santander | UIS. </footer> 
+
+    <script>
+        let isInitialized = false;
+        
+        const _matrix = new THREE.Matrix4();
+        const _position = new THREE.Vector3();
+        const _quaternion = new THREE.Quaternion();
+        const _scale = new THREE.Vector3();
+        let _lastScale = -1;
+        let _lastDist = -1;
+
+        function clearGroup(group) {
+            while(group.children.length > 0) {
+                let child = group.children[0];
+                group.remove(child);
+                if(child.geometry) child.geometry.dispose();
+                if(child.material) {
+                    if(Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                    else child.material.dispose();
+                }
+            }
+        }
+
+        function showSection(id) {
+            document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active-nav'));
+            document.getElementById(id).classList.add('active');
+            document.getElementById('nav-' + id).classList.add('active-nav');
+            window.scrollTo({top: 0, behavior: 'smooth'});
+            
+            if(id === 'simulador' && !isInitialized) { 
+                initZoom3D(); 
+                initCell3D(); 
+                isInitialized = true; 
+                changeMaterial(); 
+            }
+        }
+
+        function toggleAccordion(btn) {
+            btn.classList.toggle("active-acc");
+            btn.nextElementSibling.classList.toggle("active-acc-content");
+        }
+
+        const DB = [
+            { name: "Acero (Hierro Alfa)", type: "BCC", atoms: 2, apf: "0.68", color: "#475569", matProps: { m: 0.9, r: 0.1 }, desc: "El Hierro Alfa confiere al acero su alta dureza estructural limitando el libre deslizamiento en frío." },
+            { name: "Aluminio Puro", type: "FCC", atoms: 4, apf: "0.74", color: "#e2e8f0", matProps: { m: 0.8, r: 0.2 }, desc: "Estructura altamente compacta y simétrica que lo hace extremadamente dúctil en cualquier eje de deformación." },
+            { name: "Cobre", type: "FCC", atoms: 4, apf: "0.74", color: "#b45309", matProps: { m: 1.0, r: 0.05 }, desc: "Facilita el libre flujo de electrones para una alta conductividad al minimizar las distancias y defectos internos." },
+            { name: "Oro", type: "FCC", atoms: 4, apf: "0.74", color: "#fbbf24", matProps: { m: 1.0, r: 0.05 }, desc: "El metal más maleable conocido gracias a la pureza y baja fricción de sus planos (111)." },
+            { name: "Magnesio", type: "HCP", atoms: 6, apf: "0.74", color: "#94a3b8", matProps: { m: 0.7, r: 0.3 }, desc: "Carece de múltiples planos de deslizamiento paralelos, siendo quebradizo a temperatura ambiente." },
+            { name: "Titanio Alfa", type: "HCP", atoms: 6, apf: "0.74", color: "#64748b", matProps: { m: 0.9, r: 0.1 }, desc: "Legendaria relación fuerza-peso lograda por su densa estructura hexagonal resistente a dislocaciones no basales." },
+            { name: "Tungsteno", type: "BCC", atoms: 2, apf: "0.68", color: "#1e293b", matProps: { m: 0.9, r: 0.2 }, desc: "Posee el mayor punto de fusión de los metales puros dada la fuerza cohesiva masiva de su centro Cúbico." }
+        ];
+
+        const sel = document.getElementById('material');
+        DB.forEach((m, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx; opt.innerText = m.name;
+            sel.appendChild(opt);
+        });
+
+        let sZ, cZ, rZ, controlsZ, solidPlate, latticeGroup, basePositions = [];
+        let currentGridLines = null;
+        let currentInstMesh = null;
+        
+        const Z_MACRO = 220; 
+        const Z_MICRO = 35; 
+        let zoomSlider;
+
+        function initZoom3D() {
+            const container = document.getElementById('zoom3d-container');
+            sZ = new THREE.Scene();
+            sZ.background = new THREE.Color('#f1f5f9');
+            sZ.fog = new THREE.FogExp2('#f1f5f9', 0.007);
+
+            cZ = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 800);
+            cZ.position.set(0, 0, Z_MACRO); 
+
+            rZ = new THREE.WebGLRenderer({ antialias: true });
+            rZ.setPixelRatio(window.devicePixelRatio);
+            rZ.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(rZ.domElement);
+
+            const amb = new THREE.AmbientLight(0xffffff, 0.4); sZ.add(amb);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(50, 100, 50); sZ.add(dirLight);
+
+            controlsZ = new THREE.OrbitControls(cZ, rZ.domElement);
+            controlsZ.enablePan = true; 
+            controlsZ.minDistance = Z_MICRO; 
+            controlsZ.maxDistance = Z_MACRO;
+            controlsZ.enableDamping = true;
+            controlsZ.dampingFactor = 0.05;
+            controlsZ.zoomSpeed = 0.5;
+            controlsZ.screenSpacePanning = false;
+            controlsZ.panSpeed = 0.8;
+
+            const pGeo = new THREE.BoxGeometry(110, 110, 110); 
+            const pMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.9, roughness: 0.15, transparent: true, opacity: 1.0 });
+            solidPlate = new THREE.Mesh(pGeo, pMat);
+            const pLine = new THREE.LineSegments(new THREE.EdgesGeometry(pGeo), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 }));
+            solidPlate.add(pLine);
+            sZ.add(solidPlate);
+
+            latticeGroup = new THREE.Group(); 
+            sZ.add(latticeGroup);
+            
+            zoomSlider = document.getElementById('zoomSlider');
+            zoomSlider.addEventListener('input', (e) => {
+                let val = parseFloat(e.target.value); 
+                let targetDist = Z_MACRO - (val / 100) * (Z_MACRO - Z_MICRO);
+                let dir = new THREE.Vector3().subVectors(cZ.position, controlsZ.target).normalize();
+                cZ.position.copy(controlsZ.target).add(dir.multiplyScalar(targetDist));
+            });
+
+            animateZoom3D();
+        }
+
+        function setAtomScale(s) {
+            if(!currentInstMesh || Math.abs(_lastScale - s) < 0.001) return;
+            _scale.set(s, s, s);
+            for(let i=0; i<basePositions.length; i++) {
+                _position.copy(basePositions[i].pos); 
+                _matrix.compose(_position, _quaternion, _scale);
+                currentInstMesh.setMatrixAt(i, _matrix);
+            }
+            currentInstMesh.instanceMatrix.needsUpdate = true;
+            _lastScale = s;
+        }
+
+        function updateZoomFade(dist) {
+            let tag = document.getElementById('tagScaleMode');
+            function setMaterialOpacity(obj, op) { if (obj && obj.material) { obj.material.transparent = true; obj.material.opacity = op; } }
+
+            let lines = currentGridLines;
+            let atoms = currentInstMesh;
+
+            if (dist > 160) {
+                solidPlate.material.opacity = 1; solidPlate.visible = true; latticeGroup.visible = false;
+                tag.innerText = "ESCALA: MACROSCÓPICA (SÓLIDO)";
+                if(lines) lines.visible = false; if(atoms) atoms.visible = false;
+            } else {
+                latticeGroup.visible = true;
+                let cubeFactor = Math.max(0, Math.min(1, (dist - 130) / 30)); 
+                solidPlate.material.opacity = cubeFactor;
+                solidPlate.visible = cubeFactor > 0.01;
+
+                if (dist > 130) {
+                    let lineFactor = 1 - cubeFactor; 
+                    if(lines) { lines.visible = true; setMaterialOpacity(lines, lineFactor * 0.7); }
+                    if(atoms) { atoms.visible = true; setMaterialOpacity(atoms, lineFactor); setAtomScale(1.0); } 
+                    tag.innerText = "TRANSICIÓN A RED ATÓMICA";
+                } else {
+                    if(lines) { lines.visible = true; setMaterialOpacity(lines, 0.7); }
+                    if(atoms) { atoms.visible = true; setMaterialOpacity(atoms, 1.0); }
+                    let scale = 1.0 + ((130 - dist) / 95) * 2.5; 
+                    setAtomScale(Math.min(3.5, scale));
+                    tag.innerText = "ORGANIZACIÓN CRISTALINA (BCC / FCC / HCP)";
+                }
+            }
+        }
+
+        function buildLattice(type, colorHex) {
+            clearGroup(latticeGroup);
+            basePositions = [];
+            _lastScale = -1;
+            
+            const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.8, roughness: 0.2, transparent: true, opacity: 0 });
+            const geo = new THREE.SphereGeometry(0.12, 8, 8); 
+
+            let colorCorner = new THREE.Color(0x334155); 
+            let colorCenter = new THREE.Color(0xdc2626); 
+            let colorFace = new THREE.Color(0x0284c7);   
+            let colorHcpIn = new THREE.Color(0x16a34a);  
+
+            if(type === "BCC" || type === "FCC") {
+                let L = 5.2; let N = 21;  let offset = (N * L) / 2;
+                const ptsLines = [];
+                for(let i=0; i<=N; i++) {
+                    let v = i*L - offset;
+                    for(let j=0; j<=N; j++) {
+                        let w = j*L - offset;
+                        ptsLines.push(new THREE.Vector3(-offset, v, w), new THREE.Vector3(offset, v, w)); 
+                        ptsLines.push(new THREE.Vector3(v, -offset, w), new THREE.Vector3(v, offset, w)); 
+                        ptsLines.push(new THREE.Vector3(v, w, -offset), new THREE.Vector3(v, w, offset)); 
+                    }
+                }
+                const gridGeo = new THREE.BufferGeometry().setFromPoints(ptsLines);
+                currentGridLines = new THREE.LineSegments(gridGeo, new THREE.LineBasicMaterial({ color: 0xffb74d, transparent: true, opacity: 0 }));
+                latticeGroup.add(currentGridLines);
+
+                for(let x=0; x<=N; x++) {
+                    for(let y=0; y<=N; y++) {
+                        for(let z=0; z<=N; z++) {
+                            let px = x*L - offset; let py = y*L - offset; let pz = z*L - offset;
+                            basePositions.push({ pos: new THREE.Vector3(px, py, pz), type: 'corner' }); 
+                            if (type === "BCC" && x<N && y<N && z<N) basePositions.push({ pos: new THREE.Vector3(px + L/2, py + L/2, pz + L/2), type: 'center' });
+                            if (type === "FCC") {
+                                if (x<N && y<N && z<=N) basePositions.push({ pos: new THREE.Vector3(px + L/2, py + L/2, pz), type: 'face' });
+                                if (x<N && z<N && y<=N) basePositions.push({ pos: new THREE.Vector3(px + L/2, py, pz + L/2), type: 'face' });
+                                if (y<N && z<N && x<=N) basePositions.push({ pos: new THREE.Vector3(px, py + L/2, pz + L/2), type: 'face' });
+                            }
+                        }
+                    }
+                }
+            } else if(type === "HCP") {
+                let R = 3.0, H = 6.2; let dx = R * 1.732, dy = H, dz = R * 1.5;   
+                let dimX = 20, dimY = 16, dimZ = 24; 
+                let offX = (dimX*dx)/2, offY = (dimY*dy)/2, offZ = (dimZ*dz)/2;
+                const angs = [0, Math.PI/3, 2*Math.PI/3, Math.PI, 4*Math.PI/3, 5*Math.PI/3];
+                const ptsLines = [];
+
+                for(let y=0; y<=dimY; y++) {
+                    for(let z=0; z<=dimZ; z++) {
+                        for(let x=0; x<=dimX; x++) {
+                            let cx = x*dx + (z%2===1 ? dx/2 : 0) - offX;
+                            let cy = y*dy - offY; let cz = z*dz - offZ;
+                            basePositions.push({ pos: new THREE.Vector3(cx, cy, cz), type: 'corner' });
+                            if (y < dimY) basePositions.push({ pos: new THREE.Vector3(cx, cy+H, cz), type: 'corner' });
+                            for(let i=0; i<6; i++) {
+                                let p1 = new THREE.Vector3(cx + R*Math.cos(angs[i]), cy, cz + R*Math.sin(angs[i]));
+                                let p2 = new THREE.Vector3(cx + R*Math.cos(angs[(i+1)%6]), cy, cz + R*Math.sin(angs[(i+1)%6]));
+                                ptsLines.push(p1, p2);
+                                if (y < dimY) {
+                                    let p3 = new THREE.Vector3(cx + R*Math.cos(angs[i]), cy+H, cz + R*Math.sin(angs[i]));
+                                    ptsLines.push(p1, p3);
+                                    basePositions.push({ pos: p1, type: 'corner' }, { pos: p3, type: 'corner' });
+                                }
+                            }
+                            if (y < dimY && x < dimX && z < dimZ) {
+                                let d = R / Math.sqrt(3);
+                                for(let i=0; i<3; i++) basePositions.push({ pos: new THREE.Vector3(cx + d*Math.cos(angs[i*2] + Math.PI/6), cy + H/2, cz + d*Math.sin(angs[i*2] + Math.PI/6)), type: 'hcpIn' });
+                            }
+                        }
+                    }
+                }
+                currentGridLines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(ptsLines), new THREE.LineBasicMaterial({ color: 0xffb74d, transparent: true, opacity: 0 }));
+                latticeGroup.add(currentGridLines);
+                
+                let finalPos = []; let seen = new Set();
+                basePositions.forEach(b => {
+                    let k = `${Math.round(b.pos.x*10)},${Math.round(b.pos.y*10)},${Math.round(b.pos.z*10)}`;
+                    if(!seen.has(k)){ seen.add(k); finalPos.push(b); }
+                });
+                basePositions = finalPos;
+            }
+            
+            currentInstMesh = new THREE.InstancedMesh(geo, mat, basePositions.length);
+            let dummy = new THREE.Object3D();
+            basePositions.forEach((item, i) => { 
+                dummy.position.copy(item.pos); dummy.updateMatrix(); currentInstMesh.setMatrixAt(i, dummy.matrix); 
+                if(item.type === 'center') currentInstMesh.setColorAt(i, colorCenter);
+                else if(item.type === 'face') currentInstMesh.setColorAt(i, colorFace);
+                else if(item.type === 'hcpIn') currentInstMesh.setColorAt(i, colorHcpIn);
+                else currentInstMesh.setColorAt(i, colorCorner);
+            });
+            currentInstMesh.instanceColor.needsUpdate = true;
+            latticeGroup.add(currentInstMesh);
+            _lastDist = -1;
+        }
+
+        function animateZoom3D() { requestAnimationFrame(animateZoom3D); if (controlsZ) controlsZ.update(); if(document.getElementById('material').value && cZ) { let dist = cZ.position.distanceTo(controlsZ.target); if(Math.abs(dist - _lastDist) > 0.1) { updateZoomFade(dist); zoomSlider.value = 100 - ((dist - Z_MICRO) / (Z_MACRO - Z_MICRO)) * 100; _lastDist = dist; } } if (rZ) rZ.render(sZ, cZ); }
+
+        let sC, cC, rC, controlsC, cellGroup;
+        function initCell3D() {
+            const container = document.getElementById('cell3d-container');
+            sC = new THREE.Scene(); sC.background = new THREE.Color('#bae6fd');
+            cC = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            cC.position.set(5, 4, 6);
+            rC = new THREE.WebGLRenderer({ antialias: true });
+            rC.setPixelRatio(window.devicePixelRatio); rC.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(rC.domElement);
+            sC.add(new THREE.AmbientLight(0xffffff, 0.7), new THREE.DirectionalLight(0xffffff, 1.0));
+            controlsC = new THREE.OrbitControls(cC, rC.domElement); 
+            cellGroup = new THREE.Group(); sC.add(cellGroup);
+            animateCell3D();
+        }
+
+        function buildUnitCell(type, colorHex) {
+            clearGroup(cellGroup);
+            let mC = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.1 });
+            let mCenter = new THREE.MeshStandardMaterial({ color: 0xdc2626, metalness: 0.9, roughness: 0.1 });
+            let mF = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.9, roughness: 0.1 });
+            let mH = new THREE.MeshStandardMaterial({ color: 0x16a34a, metalness: 0.9, roughness: 0.1 });
+            const geo = new THREE.SphereGeometry(0.35, 32, 32);
+            let L = 2.6; 
+            if(type === "BCC" || type === "FCC") {
+                cellGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(L, L, L)), new THREE.LineBasicMaterial({ color: 0xffb74d })));
+                [-L/2, L/2].forEach(x => [-L/2, L/2].forEach(y => [-L/2, L/2].forEach(z => { let s = new THREE.Mesh(geo, mC); s.position.set(x,y,z); cellGroup.add(s); })));
+                if(type === "BCC") { let s = new THREE.Mesh(geo, mCenter); s.position.set(0,0,0); cellGroup.add(s); } 
+                else if (type === "FCC") [[0,0,L/2], [0,0,-L/2], [L/2,0,0], [-L/2,0,0], [0,L/2,0], [0,-L/2,0]].forEach(f => { let s = new THREE.Mesh(geo, mF); s.position.set(f[0], f[1], f[2]); cellGroup.add(s); });
+            } else if(type === "HCP") {
+                let H = 3.0, R = 1.4; const a = [0, Math.PI/3, 2*Math.PI/3, Math.PI, 4*Math.PI/3, 5*Math.PI/3];
+                const pts = [];
+                [-H/2, H/2].forEach(y => {
+                    let sC_ = new THREE.Mesh(geo, mC); sC_.position.set(0,y,0); cellGroup.add(sC_);
+                    a.forEach((ang, i) => { 
+                        let p = new THREE.Vector3(R*Math.cos(ang), y, R*Math.sin(ang)); let s = new THREE.Mesh(geo, mC); s.position.copy(p); cellGroup.add(s);
+                        pts.push(p); 
+                    });
+                });
+                for(let i=0; i<6; i++) pts.push(pts[i], pts[(i+1)%6], pts[i+6], pts[(i+1)%6+6], pts[i], pts[i+6]);
+                cellGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffb74d })));
+                let d = R/1.732; [0, 2*Math.PI/3, 4*Math.PI/3].forEach(ang => { let s = new THREE.Mesh(geo, mH); s.position.set(d*Math.cos(ang+Math.PI/6), 0, d*Math.sin(ang+Math.PI/6)); cellGroup.add(s); });
+            }
+        }
+
+        function animateCell3D() { requestAnimationFrame(animateCell3D); if(controlsC) controlsC.update(); if(rC) rC.render(sC, cC); }
+
+        function changeMaterial() {
+            const val = document.getElementById('material').value; if(!val) return; 
+            const data = DB[parseInt(val)];
+            document.getElementById('structName').innerText = data.type;
+            document.getElementById('atomCount').innerText = `${data.atoms} Átomos / Celda`;
+            document.getElementById('apfValue').innerText = `${data.apf} (${Math.round(parseFloat(data.apf)*100)}% ocupado)`;
+            document.getElementById('structDesc').innerText = data.desc;
+            if(!isInitialized) return; 
+            solidPlate.material.color.set(data.color); buildLattice(data.type, data.color); buildUnitCell(data.type, data.color);
+            cZ.position.set(0, 0, Z_MACRO); controlsZ.target.set(0,0,0); controlsZ.update();
+        }
+
+        window.addEventListener('resize', () => { if(!isInitialized) return; const cntZ = document.getElementById('zoom3d-container'); if(rZ) { rZ.setSize(cntZ.clientWidth, cntZ.clientHeight); cZ.aspect = cntZ.clientWidth/cntZ.clientHeight; cZ.updateProjectionMatrix(); } const cntC = document.getElementById('cell3d-container'); if(rC) { rC.setSize(cntC.clientWidth, cntC.clientHeight); cC.aspect = cntC.clientWidth/cntC.clientHeight; cC.updateProjectionMatrix(); } });
+    </script>
+</body>
+</html>
